@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>구닥 - 관리자</title>
+  <meta name="robots" content="noindex, nofollow">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
+      color: #1B1D1F;
+      background: #F2F2F7;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 로그인 화면 */
+    .login-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      text-align: center;
+    }
+    .login-box h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .login-box .subtitle {
+      font-size: 14px;
+      color: #8E8E93;
+      margin-bottom: 28px;
+    }
+    .login-box input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid #E5E5EA;
+      border-radius: 12px;
+      font-size: 16px;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .login-box input:focus { border-color: #34C759; }
+    .login-box button {
+      width: 100%;
+      padding: 14px;
+      background: #34C759;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .login-box button:hover { opacity: 0.85; }
+    .login-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .login-error {
+      color: #FF3B30;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* 대시보드 */
+    .dashboard { display: none; }
+    .header {
+      background: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #E5E5EA;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 800;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-refresh, .btn-logout {
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    .btn-refresh { background: #E8F5E9; color: #34C759; }
+    .btn-logout { background: #FFF0F0; color: #FF3B30; }
+    .btn-refresh:hover, .btn-logout:hover { opacity: 0.75; }
+
+    .content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* 카드 그리드 */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .stat-card .label {
+      font-size: 12px;
+      color: #8E8E93;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1B1D1F;
+    }
+    .stat-card .value.green { color: #34C759; }
+    .stat-card .value.blue { color: #007AFF; }
+    .stat-card .value.orange { color: #FF9500; }
+
+    /* 차트 섹션 */
+    .section {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .section h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    /* 테이블 */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table th {
+      text-align: left;
+      font-size: 12px;
+      color: #8E8E93;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-bottom: 1px solid #E5E5EA;
+    }
+    .data-table td {
+      padding: 12px;
+      font-size: 14px;
+      border-bottom: 1px solid #F2F2F7;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-size: 16px;
+      font-weight: 600;
+      color: #8E8E93;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .two-col { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 로그인 -->
+<div class="login-wrapper" id="loginScreen">
+  <div class="login-box">
+    <h1>Gu-Doc Admin</h1>
+    <p class="subtitle">관리자 계정으로 로그인하세요</p>
+    <form id="loginForm">
+      <input type="email" id="email" placeholder="이메일" required autocomplete="email">
+      <input type="password" id="password" placeholder="비밀번호" required autocomplete="current-password">
+      <button type="submit" id="loginBtn">로그인</button>
+    </form>
+    <p class="login-error" id="loginError"></p>
+  </div>
+</div>
+
+<!-- 대시보드 -->
+<div class="dashboard" id="dashboard">
+  <div class="header">
+    <h1>Gu-Doc Admin</h1>
+    <div class="header-actions">
+      <button class="btn-refresh" onclick="loadDashboard()">새로고침</button>
+      <button class="btn-logout" onclick="logout()">로그아웃</button>
+    </div>
+  </div>
+  <div class="content">
+    <!-- 요약 카드 -->
+    <div class="stats-grid" id="summaryCards"></div>
+
+    <!-- 가입 추이 차트 -->
+    <div class="section">
+      <h2>사용자 추이 (최근 30일)</h2>
+      <div class="chart-container">
+        <canvas id="signupChart"></canvas>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- 인증 방식 -->
+      <div class="section">
+        <h2>로그인 방식 분포</h2>
+        <div class="chart-container">
+          <canvas id="authChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 결제 주기 -->
+      <div class="section">
+        <h2>결제 주기 분포</h2>
+        <div class="chart-container">
+          <canvas id="billingChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 인기 구독 서비스 -->
+    <div class="section">
+      <h2>인기 구독 서비스 TOP 20</h2>
+      <table class="data-table" id="popularTable">
+        <thead>
+          <tr>
+            <th></th>
+            <th>서비스</th>
+            <th>사용자 수</th>
+            <th>평균 가격</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading" style="display:none;">데이터 불러오는 중...</div>
+
+<script>
+const SUPABASE_URL = 'https://chxdjvhbgerrkylvrnga.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoeGRqdmhiZ2Vycmt5bHZybmdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MjM5OTgsImV4cCI6MjA4ODA5OTk5OH0.tG8rHykBSSWrNdpOb4bHnqNntOPst5nOc3qGXH7KehE';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let signupChart, authChart, billingChart;
+
+// 로그인
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('loginBtn');
+  const error = document.getElementById('loginError');
+
+  btn.disabled = true;
+  error.textContent = '';
+
+  const { error: authError } = await sb.auth.signInWithPassword({ email, password });
+
+  if (authError) {
+    error.textContent = '로그인 실패: ' + authError.message;
+    btn.disabled = false;
+    return;
+  }
+
+  showDashboard();
+});
+
+async function logout() {
+  await sb.auth.signOut();
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+async function showDashboard() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  await loadDashboard();
+}
+
+async function loadDashboard() {
+  document.getElementById('loading').style.display = 'flex';
+
+  try {
+    const [summary, signups, providers, popular, billing] = await Promise.all([
+      sb.rpc('get_admin_summary'),
+      sb.rpc('get_admin_signups_by_date'),
+      sb.rpc('get_admin_auth_providers'),
+      sb.rpc('get_admin_popular_subscriptions'),
+      sb.rpc('get_admin_billing_cycles'),
+    ]);
+
+    if (summary.error) throw new Error(summary.error.message);
+
+    renderSummary(summary.data);
+    renderSignupChart(signups.data || []);
+    renderAuthChart(providers.data || []);
+    renderBillingChart(billing.data || []);
+    renderPopularTable(popular.data || []);
+  } catch (err) {
+    alert('데이터 로딩 실패: ' + err.message);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+function renderSummary(d) {
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="stat-card"><div class="label">전체 사용자</div><div class="value blue">${d.total_users}</div></div>
+    <div class="stat-card"><div class="label">오늘 가입</div><div class="value green">${d.today_signups}</div></div>
+    <div class="stat-card"><div class="label">이번 주 가입</div><div class="value green">${d.this_week_signups}</div></div>
+    <div class="stat-card"><div class="label">이번 달 가입</div><div class="value green">${d.this_month_signups}</div></div>
+    <div class="stat-card"><div class="label">활성 구독</div><div class="value">${d.active_subscriptions}</div></div>
+    <div class="stat-card"><div class="label">비활성 구독</div><div class="value orange">${d.inactive_subscriptions}</div></div>
+    <div class="stat-card"><div class="label">iOS 기기</div><div class="value">${d.ios_tokens}</div></div>
+    <div class="stat-card"><div class="label">Android 기기</div><div class="value">${d.android_tokens}</div></div>
+  `;
+}
+
+function renderSignupChart(data) {
+  const ctx = document.getElementById('signupChart').getContext('2d');
+  if (signupChart) signupChart.destroy();
+  signupChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => {
+        const date = new Date(d.date);
+        return `${date.getMonth()+1}/${date.getDate()}`;
+      }),
+      datasets: [
+        {
+          label: '회원',
+          data: data.map(d => d.member_count),
+          backgroundColor: '#007AFF80',
+          borderColor: '#007AFF',
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+        {
+          label: '비회원',
+          data: data.map(d => d.anonymous_count),
+          backgroundColor: '#FF950080',
+          borderColor: '#FF9500',
+          borderWidth: 2,
+          borderRadius: 4,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top' } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, stacked: true },
+        x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, stacked: true }
+      }
+    }
+  });
+}
+
+function renderAuthChart(data) {
+  const colors = ['#34C759', '#007AFF', '#FF9500', '#FF3B30', '#AF52DE', '#8E8E93'];
+  const ctx = document.getElementById('authChart').getContext('2d');
+  if (authChart) authChart.destroy();
+  authChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.provider),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: colors.slice(0, data.length),
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } }
+      }
+    }
+  });
+}
+
+function renderBillingChart(data) {
+  const colors = ['#007AFF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE'];
+  const ctx = document.getElementById('billingChart').getContext('2d');
+  if (billingChart) billingChart.destroy();
+  billingChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.cycle),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: colors.slice(0, data.length),
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } }
+      }
+    }
+  });
+}
+
+function renderPopularTable(data) {
+  const tbody = document.querySelector('#popularTable tbody');
+  tbody.innerHTML = data.map((d, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${d.icon || ''} ${d.service_name}</td>
+      <td><strong>${d.user_count}</strong>명</td>
+      <td>₩${Number(d.avg_price_krw).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+// 세션 체크 - 이미 로그인되어 있으면 대시보드 표시
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) showDashboard();
+})();
+</script>
+</body>
+</html>
